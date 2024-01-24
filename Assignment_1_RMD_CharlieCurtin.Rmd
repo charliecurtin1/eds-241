@@ -81,31 +81,96 @@ sum(df$Di == 1)
 b) Make two separate histograms of Xi for the treatment and control group. What do you see and does it comply with your expectations, explain why or why not?
 
 ```{r}
+library(gridExtra)
+## make two separate histograms for the treatment and control group
+# treatment group histogram
+treatment <- df %>% 
+  filter(Di == 1) %>% 
+  ggplot(aes(x = Xi)) +
+  geom_histogram(binwidth = .5,
+                 color = "black",
+                 fill = "cornflowerblue") +
+  labs(title = "treatment") +
+  theme_bw()
 
+# control group histogram
+control <- df %>% 
+  filter(Di == 0) %>% 
+  ggplot(aes(x = Xi)) +
+  geom_histogram(binwidth = .5,
+                 color = "black",
+                 fill = "cornflowerblue") +
+  labs(title = "control") +
+  theme_bw() +
+  theme(axis.title.y = element_blank())
+
+# arrange plots side-by-side
+grid.arrange(treatment, control, ncol = 2)
 ```
+- We can see roughly similarly-distributed counts of observations of different Xi values between our treatment and control groups. This makes sense because we randomly assigned units to be treated or untreated with simple random sampling
 
 
 c) Test whether Di is uncorrelated with the pre-treatment characteristic Xi and report your finding.
 
 ```{r}
-
+# find the correlation between our treatment assignment binary and our independent variable, Xi
+print(cor(df$Di, df$Xi))
 ```
+- Our treatment assignment is uncorrelated to our pre-treatment characteristic, with an R value of -.005.
 
 
 d) Test whether Di is uncorrelated with the potential outcomes Yi_0 and Yi_1 and report your finding (only possible for this synthetic dataset where we know all potential outcomes).
 
 ```{r}
+## find the correlation between our treatment assignment binary and our potential outcomes
+# treatment assignment and Yi_0 (outcome if not treated)
+print(cor(df$Di, df$Yi_0))
 
+# treatment assignment and Yi_1 (outcome if treated)
+print(cor(df$Di, df$Yi_1))
 ```
+- Our treatment assignment is not correlated to either of our potential outcomes.
+
 
 e) Estimate the ATE by comparing mean outcomes for treatment and control group. Test for mean difference between the groups and report your findings.
 
 ```{r}
+# estimate the ATE by finding the difference in means for treatment and control groups
+ATE <- mean(df$Yi_1) - mean(df$Yi_0)
 
+print(ATE)
+
+# compute a t-test for mean difference between the groups
+print(t.test(df$Yi_1, df$Yi_0))
 ```
-
+- Based on our small p-value, we can reject the null hypothesis and accept the alternative hypothesis that our true difference in means is not equal to 0. We are 95% confident that the interval [1.47, 1.53] contains the true difference in means.
 
 f) Estimate the ATE using a simple regression of (i) Yi on Di and (ii) Yi on Di and Xi and report your findings and include.
+
+```{r}
+# append a new column "Yi" to our dataframe, which is assigned the value Yi_1 if the unit is treated (Di = 1) and the value of Yi_0 if the unit is not treated (Di = 0)
+df <- df %>% 
+  mutate(Yi = ifelse(Di == 1,
+                     Yi_1,
+                     Yi_0))
+
+# simple linear regression of Yi on Di
+lm_a <- lm(Yi ~ Di, data = df)
+
+# save output to a summary table
+mod_lm_a <- summary(lm_a)
+
+# multiple linear regression of Yi on Di and Xi
+lm_b <- lm(Yi ~ Di + Xi, data = df)
+
+# save output to a summary table
+mod_lm_b <- summary(lm_b)
+
+# print model outputs
+print(mod_lm_a)
+print(mod_lm_b)
+```
+- Our simple linear regression tells us that the ATE is 1.53, signified by the B1 coefficient. Our multiple linear regression tells us that that the ATE is 1.52 through the B1 coefficient, but that the pre-treatment characteristic Xi influences the ATE. For each 1-unit increase in Xi, the ATE for that group is expected to increase by .75.
 
 \newpage
 
@@ -113,9 +178,12 @@ f) Estimate the ATE using a simple regression of (i) Yi on Di and (ii) Yi on Di 
 \indent Part 2 is based on Gertler, Martinez, and Rubio-Codina (2012) (article provided on canvas) and covers impact evaluation of the Mexican conditional cash transfer Progresa (later called Oportunidades, now Prospera). Basically, families with low-incomes received cash benefits if they complied to certain conditions, such as regular school attendance for children and regular healthcare visits. You can read more about the program in the Boxes 2.1 (p.10) & 3.1 (p.40) of the Handbook on impact evaluation: quantitative methods and practices by Khandker, B. Koolwal, and Samad (2010). The program followed a randomized phase-in design. You have data on households (hh) from 1999, when treatment hh have been receiving benefits for a year and control hh have not yet received any benefits. You can find a description of the variables at the end of the assignment. Again, briefly report what you find or respond to the questions.
 
 ```{r , include=FALSE}
-
 # Load the dataset
-progresa <- read.csv("progresa.csv")
+progresa <- read.csv("data/progresa.csv")
+
+# replace NA values with 0s
+progresa_itt_df <- progresa %>%
+  mutate(treatment = replace_na(treatment, 0))
 
 ```
 

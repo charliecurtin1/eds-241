@@ -1,6 +1,6 @@
 ---
 title: "EDS241: Assignment 1 Template"
-author: "Elliott Finn"
+author: "Charlie Curtin"
 date: '`r format(Sys.time(), "%m/%d/%Y")`'
 output: 
   pdf_document:
@@ -143,7 +143,7 @@ print(ATE)
 # compute a t-test for mean difference between the groups
 print(t.test(df$Yi_1, df$Yi_0))
 ```
-- Based on our small p-value, we can reject the null hypothesis and accept the alternative hypothesis that our true difference in means is not equal to 0. We are 95% confident that the interval [1.47, 1.53] contains the true difference in means.
+- Based on our small p-value, we can reject the null hypothesis and accept the alternative hypothesis that our true difference in means is not equal to 0. We are 95% confident that the interval [1.47, 1.53] contains the true difference in mean outcomes between the treatment and control groups.
 
 f) Estimate the ATE using a simple regression of (i) Yi on Di and (ii) Yi on Di and Xi and report your findings and include.
 
@@ -190,18 +190,61 @@ progresa_itt_df <- progresa %>%
 a) Some variables in the dataset were collected in 1997 before treatment began. Use these variables to test whether there are systematic differences between the control and the treatment group before the cash transfer began (i.e. test for systematic differences on all 1997 variables). Describe your results. Does it matter whether there are systematic differences? Why or why not?  Would it be a mistake to do the same test with these variables if they were collected after treatment began and if so why? Note: If your variable is a proportion (e.g. binary variables), you should use a proportions test, otherwise you can use a t-test.
 
 ```{r , include=FALSE}
+# create new dataframes for control and treatment groups
+progresa_control <- progresa_itt_df %>% 
+  filter(treatment == 0)
+
+progresa_treatment <- progresa_itt_df %>% 
+  filter(treatment == 1)
+
 ## For continuous variables you can use the t-test
-#t.test()
+# t-test of hhsize97 for treatment and control groups
+t.test(progresa_treatment$hhsize97, progresa_control$hhsize97)
 
 ## For binary variables you should use the proportions test
-#prop.test()
+# proportions test for dirtfloor97
+progresa_itt_df %>% 
+  select(treatment, dirtfloor97) %>% # select two variables to create matrix
+  table() %>% # create matrix of successes and failures
+  prop.test() # conduct proportions test
 
+# proportions test for bathroom97
+progresa_itt_df %>% 
+  select(treatment, bathroom97) %>% 
+  table() %>% 
+  prop.test() 
+
+# prop test for electricity97
+progresa_itt_df %>% 
+  select(treatment, electricity97) %>% 
+  table %>% 
+  prop.test()
 ```
+- In a proportions test, our null hypothesis is that the proportions between our treatment and control groups is equal. With our small p-value, we can reject the null hypothesis and accept the alternative hypothesis that there is a difference in proportions between our treatment and control groups. We are 95% confident that the interval [.02, .05] contains the true difference in proportions.
 
 
 b) Estimate the impact of program participation on the household’s value of animal holdings (vani) using a simple univariate regression. Interpret the intercept and the coefficient. Is this an estimate of a treatment effect?
 
+```{r}
+# simple regression on treatment and animal holdings
+lm_vani <- lm(treatment ~ vani, data = progresa_itt_df)
+
+# print model results
+summary(lm_vani)
+```
+- The intercept means that we should expect to see households with animal value holdings have a probability of treatment of .5. The B1 coefficient means that for treated households, we expect to see the log-odds of treatment change by a miniscule amount per 1 unit increase in the value of animal holdings. The high p-value means that there is not a statistically significant relationship between treatment and animal holdings. This is not an estimate of a treatment effect because we don't have any pre-treatment animal value holdings for each household to compare to.
+
+
 c) Now, include at least 6 independent control variables in your regression. How does the impact of program participation change? Choose one of your other control variables and interpret the coefficient.
+
+```{r}
+# multivariate regression on treatment and 6 control variables
+lm_multi <- lm(treatment ~ female_hh + ethnicity_hh + ani + educ_hh + ha + foodexp, data = progresa_itt_df)
+
+# print model output
+summary(lm_multi)
+```
+- For "ha" (total hectares of land), the coefficient means that a 1 unit increase in total hectares of land decreases the log-odds of treatment by .004, holding every other independent variable constant.
 
 d) The dataset also contains a variable intention_to_treat. This variable identifies eligible households in participating villages. Most of these households ended up in the treatment group receiving the cash transfer, but some did not. Test if the program has an effect on the value of animal holdings of these non-participants (spillover effects). Think of a reason why there might or might not be spillover effects. 
 
@@ -214,93 +257,18 @@ table(treatment = progresa$treatment, intention_to_treat = progresa$intention_to
 # Create a new treatment variable that is:
 # = 1 if intention_to_treat == 1 AND not in the actual treatment
 # = 0 for normal control hh.
+# using case_when to create our pseudo-treatment variable
+progresa_itt_df <- progresa_itt_df %>% 
+  mutate(pseudo_treatment = case_when(
+    intention_to_treat == 1 & treatment == 0 ~ 1,
+    intention_to_treat == 1 & treatment == 1 ~ 0,
+    TRUE ~ treatment
+     ))
 
-# This creates a new variable called pseudo_treatment that has missing values for every hh
-progresa$pseudo_treatment <- NA
-# Replace NAs with 1 for the new intervention group
-progresa$pseudo_treatment[] <- 1
-# Replace NAs with 0 for the normal control group
-progresa$pseudo_treatment[] <- 0
-
-```
-
-\newpage
-# Mock Assignment, examples for you to use. Do not include in final submission
-
-\noindent In this mock assignment, we use the preloaded ``mtcars" data in R to investigate the relationship between vehicle miles per gallon (MPG), weight, and number of cylinders. The data was extracted from the 1974 Motor Trend US magazine, and comprises fuel consumption and 10 aspects of automobile design and performance for 32 automobiles (1973--74 models).
-
-# Clean and plot data
-
-\noindent The following code loads and cleans the data.
-
-```{r , include=TRUE}
-
-# Load data
-
-data("mtcars")
-raw_data <- mtcars
-
-# Clean data
-
-## Add model names as a column 
-## [this is just an example manipulation, I rarely assign rownames to a column]
-
-clean_data <- tibble::rownames_to_column(raw_data, "model")
-
+## using a t_test to see if the program has a spillover effect on the value of animal holdings
+# conduct a t.test on the difference in means of value of animal holdings between the treatment and control groups in our pseudo-treatment scenario
+t.test(filter(progresa_itt_df, pseudo_treatment == 1)$vani,
+       filter(progresa_itt_df, pseudo_treatment == 0)$vani)
 
 ```
-
-\noindent The code chunk below shows how to produce a scatter plot of MPG against weight.  
-
-```{r , include=TRUE}
-
-# Plot 1
-
-plot_1 <- ggplot(clean_data, aes(y=mpg, x = wt))+
-  geom_point()+
-  theme_cowplot(14)+
-  labs(x = "Weight (1000 lbs)", y = "Miles per gallon")
-
-```
-
-\newpage
-<center>**Figure 1: MPG and vehicle weight**</center>
-```{r , fig.width = 4, fig.height = 3, eval=TRUE, echo=FALSE}
-plot_1
-```
-
-\noindent Figure 1 shows the expected negative relationship between vehicle weight and MPG.
-
-# Run and interpret regression models
-
-\noindent In order to more formally analyze the relationship between MPG, vehicle weight, and cylinders we estimate the following regression: 
-
-\begin{align}
-  Y_{i} = \beta_0 + \beta_1 X_{1i} + \beta_2 X_{2i} + u_{i}
-\end{align}
-
-\noindent where $Y_{i}$ is MPG for vehicle model $i$, $X_{1i}$ is the vehicle weight, $X_{2i}$ is the number of cylinders in the engine, and $u_{i}$ the regression error term. We will consider a regression including only vehicle weight, and a regression including vehicle weight and number of cylinders.
-
-\medskip
-
-\noindent In R, we run the following code: 
-
-```{r , include=TRUE}
-
-model_1 <- lm(mpg ~ wt, data=clean_data)
-model_2 <- lm(mpg ~ wt + cyl, data=clean_data)
-
-```
-
-\noindent Table 1 shows the estimated coefficients from estimating equation (1). 
-
-```{r , results = 'asis', echo = FALSE}
-stargazer(model_1, model_2, type = "latex", ci=FALSE, no.space = TRUE, 
-          header = FALSE, omit = c("Constant"), omit.stat = c("adj.rsq","ser", "f"),
-          covariate.labels = c("Weight (1000 lbs)", "Cylinders"), dep.var.labels = c("MPG"),
-          dep.var.caption = c(""),
-          title = "MPG and vehicle weight", table.placement = "H")
-
-```
-
-\noindent In model (1), the estimated $\beta_{1}$ coefficient implies that a 1000 pound increase in vehicle weight reduces miles per gallon by 5.3 miles. Adding the number of cylinders in model (2) reduces $\hat{\beta_{1}}$ from -5.3 to -3.2.
+- Our high p-value indicates that we don't have enough evidence to reject the null hypothesis that there is no difference in the means between our treatment and control groups. This indicates that we don't have a spillover effect. There might not be a spillover effect because those that received the cash transfer might be using it for more pressing needs like food, not to increase the value of their animal holdings.

@@ -1,17 +1,12 @@
 ---
-title: "EDS241: Assignment 1 Template"
+title: 'EDS241: Assignment 1 Template'
 author: "Charlie Curtin"
-date: '`r format(Sys.time(), "%m/%d/%Y")`'
-output: 
-  pdf_document:
-    toc: false
-    number_sections: yes
-header-includes:
-  - \setlength{\parindent}{1em}
-  - \usepackage{float}
---- 
-  
-``` {r setup, echo = FALSE, message = FALSE, warning = FALSE}
+output:
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, echo = FALSE, message = FALSE, warning = FALSE}
 
 # set default chunk options
 knitr::opts_chunk$set(fig.width = 4, fig.height = 3, 
@@ -36,9 +31,9 @@ options(scipen=999)
 
 ```
 
-# Part 1 
-(NOTE: Uses the RCT.R code provided with lecture to generate data) 
-DO NOT CHANGE ANYTHING BELOW UNTIL IT SAYS EXPLICITLY
+# Part 1
+
+(NOTE: Uses the RCT.R code provided with lecture to generate data) DO NOT CHANGE ANYTHING BELOW UNTIL IT SAYS EXPLICITLY
 
 ```{r , include=FALSE}
 
@@ -63,10 +58,12 @@ DO NOT CHANGE ANYTHING BELOW UNTIL IT SAYS EXPLICITLY
   df <- data.frame(Xi, Yi_0, Yi_1)
 
 ```
-## BELOW YOU CAN (AND HAVE TO) CHANGE AND ADD CODE TO DO ASSIGNMENT  
-Part 1: Use the small program above that generates synthetic potential outcomes without treatment, Yi_0, and with treatment, Yi_1. When reporting findings, report them using statistical terminology (i.e. more than y/n.)  Please do the following and answer the respective questions (briefly). 
 
-a) Create equally sized treatment and control groups by creating a binary random variable Di where the units with the *1’s” are chosen randomly.
+## BELOW YOU CAN (AND HAVE TO) CHANGE AND ADD CODE TO DO ASSIGNMENT
+
+Part 1: Use the small program above that generates synthetic potential outcomes without treatment, Yi_0, and with treatment, Yi_1. When reporting findings, report them using statistical terminology (i.e. more than y/n.) Please do the following and answer the respective questions (briefly).
+
+a)  Create equally sized treatment and control groups by creating a binary random variable Di where the units with the \*1’s” are chosen randomly.
 
 ```{r}
 ## create equally sized treatment and control groups by creating a binary random variable where the units with the 1's are chosen randomly
@@ -77,8 +74,7 @@ df$Di <- sample(c(0,1), nrow(df), replace = TRUE)
 sum(df$Di == 1)
 ```
 
-
-b) Make two separate histograms of Xi for the treatment and control group. What do you see and does it comply with your expectations, explain why or why not?
+b)  Make two separate histograms of Xi for the treatment and control group. What do you see and does it comply with your expectations, explain why or why not?
 
 ```{r}
 library(gridExtra)
@@ -107,19 +103,19 @@ control <- df %>%
 # arrange plots side-by-side
 grid.arrange(treatment, control, ncol = 2)
 ```
-- We can see roughly similarly-distributed counts of observations of different Xi values between our treatment and control groups. This makes sense because we randomly assigned units to be treated or untreated with simple random sampling
 
+-   We can see roughly similarly-distributed counts of observations of different Xi values between our treatment and control groups. This makes sense because we randomly assigned units to be treated or untreated with simple random sampling
 
-c) Test whether Di is uncorrelated with the pre-treatment characteristic Xi and report your finding.
+c)  Test whether Di is uncorrelated with the pre-treatment characteristic Xi and report your finding.
 
 ```{r}
 # find the correlation between our treatment assignment binary and our independent variable, Xi
 print(cor(df$Di, df$Xi))
 ```
-- Our treatment assignment is uncorrelated to our pre-treatment characteristic, with an R value of -.005.
 
+-   Our treatment assignment is uncorrelated to our pre-treatment characteristic, with an R value of -.005.
 
-d) Test whether Di is uncorrelated with the potential outcomes Yi_0 and Yi_1 and report your finding (only possible for this synthetic dataset where we know all potential outcomes).
+d)  Test whether Di is uncorrelated with the potential outcomes Yi_0 and Yi_1 and report your finding (only possible for this synthetic dataset where we know all potential outcomes).
 
 ```{r}
 ## find the correlation between our treatment assignment binary and our potential outcomes
@@ -129,10 +125,10 @@ print(cor(df$Di, df$Yi_0))
 # treatment assignment and Yi_1 (outcome if treated)
 print(cor(df$Di, df$Yi_1))
 ```
-- Our treatment assignment is not correlated to either of our potential outcomes.
 
+-   Our treatment assignment is not correlated to either of our potential outcomes.
 
-e) Estimate the ATE by comparing mean outcomes for treatment and control group. Test for mean difference between the groups and report your findings.
+e)  Estimate the ATE by comparing mean outcomes for treatment and control group. Test for mean difference between the groups and report your findings.
 
 ```{r}
 # estimate the ATE by finding the difference in means for treatment and control groups
@@ -143,9 +139,10 @@ print(ATE)
 # compute a t-test for mean difference between the groups
 print(t.test(df$Yi_1, df$Yi_0))
 ```
-- Based on our small p-value, we can reject the null hypothesis and accept the alternative hypothesis that our true difference in means is not equal to 0. We are 95% confident that the interval [1.47, 1.53] contains the true difference in mean outcomes between the treatment and control groups.
 
-f) Estimate the ATE using a simple regression of (i) Yi on Di and (ii) Yi on Di and Xi and report your findings and include.
+-   Based on our small p-value, we can reject the null hypothesis and accept the alternative hypothesis that our true difference in means is not equal to 0. We are 95% confident that the interval [1.47, 1.53] contains the true difference in mean outcomes between the treatment and control groups.
+
+f)  Estimate the ATE using a simple regression of (i) Yi on Di and (ii) Yi on Di and Xi and report your findings and include.
 
 ```{r}
 # append a new column "Yi" to our dataframe, which is assigned the value Yi_1 if the unit is treated (Di = 1) and the value of Yi_0 if the unit is not treated (Di = 0)
@@ -170,11 +167,13 @@ mod_lm_b <- summary(lm_b)
 print(mod_lm_a)
 print(mod_lm_b)
 ```
-- Our simple linear regression tells us that the ATE is 1.53, signified by the B1 coefficient. Our multiple linear regression tells us that that the ATE is 1.52 through the B1 coefficient, but that the pre-treatment characteristic Xi influences the ATE. For each 1-unit increase in Xi, the ATE for that group is expected to increase by .75.
+
+-   Our simple linear regression tells us that the ATE is 1.53, signified by the B1 coefficient. Our multiple linear regression tells us that that the ATE is 1.52 through the B1 coefficient, but that the pre-treatment characteristic Xi influences the ATE. For each 1-unit increase in Xi, the ATE for that group is expected to increase by .75.
 
 \newpage
 
 # Part 2
+
 \indent Part 2 is based on Gertler, Martinez, and Rubio-Codina (2012) (article provided on canvas) and covers impact evaluation of the Mexican conditional cash transfer Progresa (later called Oportunidades, now Prospera). Basically, families with low-incomes received cash benefits if they complied to certain conditions, such as regular school attendance for children and regular healthcare visits. You can read more about the program in the Boxes 2.1 (p.10) & 3.1 (p.40) of the Handbook on impact evaluation: quantitative methods and practices by Khandker, B. Koolwal, and Samad (2010). The program followed a randomized phase-in design. You have data on households (hh) from 1999, when treatment hh have been receiving benefits for a year and control hh have not yet received any benefits. You can find a description of the variables at the end of the assignment. Again, briefly report what you find or respond to the questions.
 
 ```{r , include=FALSE}
@@ -187,7 +186,7 @@ progresa_itt_df <- progresa %>%
 
 ```
 
-a) Some variables in the dataset were collected in 1997 before treatment began. Use these variables to test whether there are systematic differences between the control and the treatment group before the cash transfer began (i.e. test for systematic differences on all 1997 variables). Describe your results. Does it matter whether there are systematic differences? Why or why not?  Would it be a mistake to do the same test with these variables if they were collected after treatment began and if so why? Note: If your variable is a proportion (e.g. binary variables), you should use a proportions test, otherwise you can use a t-test.
+a)  Some variables in the dataset were collected in 1997 before treatment began. Use these variables to test whether there are systematic differences between the control and the treatment group before the cash transfer began (i.e. test for systematic differences on all 1997 variables). Describe your results. Does it matter whether there are systematic differences? Why or why not? Would it be a mistake to do the same test with these variables if they were collected after treatment began and if so why? Note: If your variable is a proportion (e.g. binary variables), you should use a proportions test, otherwise you can use a t-test.
 
 ```{r , include=FALSE}
 # create new dataframes for control and treatment groups
@@ -220,10 +219,10 @@ progresa_itt_df %>%
   table %>% 
   prop.test()
 ```
-- In a proportions test, our null hypothesis is that the proportions between our treatment and control groups is equal. With our small p-value, we can reject the null hypothesis and accept the alternative hypothesis that there is a difference in proportions between our treatment and control groups. We are 95% confident that the interval [.02, .05] contains the true difference in proportions.
 
+-   In a proportions test, our null hypothesis is that the proportions between our treatment and control groups is equal. With our small p-value, we can reject the null hypothesis and accept the alternative hypothesis that there is a difference in proportions between our treatment and control groups. We are 95% confident that the interval [.02, .05] contains the true difference in proportions.
 
-b) Estimate the impact of program participation on the household’s value of animal holdings (vani) using a simple univariate regression. Interpret the intercept and the coefficient. Is this an estimate of a treatment effect?
+b)  Estimate the impact of program participation on the household’s value of animal holdings (vani) using a simple univariate regression. Interpret the intercept and the coefficient. Is this an estimate of a treatment effect?
 
 ```{r}
 # simple regression on treatment and animal holdings
@@ -232,10 +231,10 @@ lm_vani <- lm(treatment ~ vani, data = progresa_itt_df)
 # print model results
 summary(lm_vani)
 ```
-- The intercept means that we should expect to see households with animal value holdings have a probability of treatment of .5. The B1 coefficient means that for treated households, we expect to see the log-odds of treatment change by a miniscule amount per 1 unit increase in the value of animal holdings. The high p-value means that there is not a statistically significant relationship between treatment and animal holdings. This is not an estimate of a treatment effect because we don't have any pre-treatment animal value holdings for each household to compare to.
 
+-   The intercept means that we should expect to see households with animal value holdings have a probability of treatment of .5. The B1 coefficient means that for treated households, we expect to see the log-odds of treatment change by a miniscule amount per 1 unit increase in the value of animal holdings. The high p-value means that there is not a statistically significant relationship between treatment and animal holdings. This is not an estimate of a treatment effect because we don't have any pre-treatment animal value holdings for each household to compare to.
 
-c) Now, include at least 6 independent control variables in your regression. How does the impact of program participation change? Choose one of your other control variables and interpret the coefficient.
+c)  Now, include at least 6 independent control variables in your regression. How does the impact of program participation change? Choose one of your other control variables and interpret the coefficient.
 
 ```{r}
 # multivariate regression on treatment and 6 control variables
@@ -244,9 +243,10 @@ lm_multi <- lm(treatment ~ female_hh + ethnicity_hh + ani + educ_hh + ha + foode
 # print model output
 summary(lm_multi)
 ```
-- For "ha" (total hectares of land), the coefficient means that a 1 unit increase in total hectares of land decreases the log-odds of treatment by .004, holding every other independent variable constant.
 
-d) The dataset also contains a variable intention_to_treat. This variable identifies eligible households in participating villages. Most of these households ended up in the treatment group receiving the cash transfer, but some did not. Test if the program has an effect on the value of animal holdings of these non-participants (spillover effects). Think of a reason why there might or might not be spillover effects. 
+-   For "ha" (total hectares of land), the coefficient means that a 1 unit increase in total hectares of land decreases the log-odds of treatment by .004, holding every other independent variable constant.
+
+d)  The dataset also contains a variable intention_to_treat. This variable identifies eligible households in participating villages. Most of these households ended up in the treatment group receiving the cash transfer, but some did not. Test if the program has an effect on the value of animal holdings of these non-participants (spillover effects). Think of a reason why there might or might not be spillover effects.
 
 \noindent Hint: Create a pseudo-treatment variable that is = 1 for individuals who were intended to get treatment but did not receive it, = 0 for the normal control group and excludes the normal treatment group.
 
@@ -271,4 +271,5 @@ t.test(filter(progresa_itt_df, pseudo_treatment == 1)$vani,
        filter(progresa_itt_df, pseudo_treatment == 0)$vani)
 
 ```
-- Our high p-value indicates that we don't have enough evidence to reject the null hypothesis that there is no difference in the means between our treatment and control groups. This indicates that we don't have a spillover effect. There might not be a spillover effect because those that received the cash transfer might be using it for more pressing needs like food, not to increase the value of their animal holdings.
+
+-   Our high p-value indicates that we don't have enough evidence to reject the null hypothesis that there is no difference in the means between our treatment and control groups. This indicates that we don't have a spillover effect. There might not be a spillover effect because those that received the cash transfer might be using it for more pressing needs like food, not to increase the value of their animal holdings.

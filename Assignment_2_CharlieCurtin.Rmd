@@ -148,9 +148,12 @@ combined_results_table <- kable(combined_results, format = "html",
 
 ## Covariate Calculations and Tables (feel free to use code from Assignment 1 key)
 combined_results_table
+
+# mean difference of birth weights
+mean_diff <- (combined_results[8, 3] - combined_results[8, 2])
 ```
 
-- under what assumption does this correspond to the ATE?
+- the mean difference in birth weight between smoking and nonsmoking mothers is `r{mean_diff}`. This corresponds to the ATE under the treatment ignorability assumption, which means that means.  There are statistically significant differences between in the control variables between our treated and untreated groups. This provides empirical evidence against treatment ignorability since
 
 
 ## ATE and Covariate Balance _(3 pts)_
@@ -168,7 +171,7 @@ se_models <- starprep(model1, model2, stat = c("std.error"), se_type = "HC2", al
 
 # Present Regression Results
 stargazer(model1, model2, se = se_models,
-          type = "latex", ci = FALSE, no.space = TRUE,
+          type = "text", ci = FALSE, no.space = TRUE,
           header = FALSE, omit = c("Constant"), omit.stat = c("adj.rsq", "ser", "f"),
           covariate.labels = c("tobacco", "anemia", "diabete", "alcohol", "mblack", "first", "mage", "meduc"),
           dep.var.labels = c("Birthweight (g)"), dep.var.caption = c(""),
@@ -185,9 +188,14 @@ balance_table <- as.data.frame(cov_balance$results)
 
 kable(balance_table, format = "html")
 
-cov_balance$overall
+balance_table
 
 ```
+
+- regression results- when you add all the covariates, the size of our estimate on tobacco changes. This means that there are other factors influencing 
+
+- balance table- The standardized difference in the balance table. For p-values that are significant, we've rejected the null hypothesis that there is no difference between the proportions or means of the covariates in our treatment and control groups. It shows that all the covariates are imbalanced between our treatment and control groups besides diabetes
+
 
 ## Propensity Score Estimation _(3 pts)_
 c) Next, estimate propensity scores (i.e. probability of being treated) for the sample, using the provided covariates. Create a regression table reporting the results of the regression and discuss what the covariate coefficients indicate and interpret one coefficient [1.5 pts]. Create histograms of the propensity scores comparing the distributions of propensity scores for smokers ('treated') and non-smokers ('control'), discuss the overlap and what it means [1.5 pts].
@@ -198,10 +206,10 @@ c) Next, estimate propensity scores (i.e. probability of being treated) for the 
 propensity_lm <- glm(tobacco ~ anemia + diabete + alcohol + mblack + first + mage + meduc, 
                   data = smoking, family = binomial())
 
-summary(propensity)
+summary(propensity_lm)
 
 # predict propensity scores
-smoking$pscores <- predict(propensity, type = "response")
+smoking$pscores <- predict(propensity_lm, type = "response")
 
 
 ## PS Histogram Unmatched 
@@ -210,8 +218,14 @@ histbackback(split(smoking$pscores,	smoking$tobacco),	main =
   "Propensity	score	before matching",	xlab = c("control",	"treatment"))
 
 # format regression table
-stargazer(propensity_lm, type = "html")
+stargazer(propensity_lm, type = "text")
 ```
+
+- regression results- The covariate coefficients show the increase in log-odds of the mother being a smoker (selecting into treatment), holding all other variables constant. For anemia, if the mother has anemia, their log-odds of being a smoker increase by .334. 
+
+-histograms- The overlap in the histograms between control and treatment show that we do have matches at every bin of propensity scores, so we can try matching
+
+
 
 ## Matching Balance _(3 pts)_
 (d) Next, match treated/control mothers using your estimated propensity scores and nearest neighbor matching. Compare the balancing of pretreatment characteristics (covariates) between treated and non-treated units in the original dataset (from c) with the matched dataset (think about comparing histograms/regressions) [2 pts]. Make sure to report and discuss the balance statistics [1 pts].
@@ -234,6 +248,10 @@ cov_balance_ps$results
 histbackback(split(match.data$pscores, match.data$tobacco),	main = 
   "Propensity	score	after matching",	xlab = c("control",	"treatment"))
 ```
+- histograms- Our histogram after matching shows more balance between control and treatment groups. We matched observations in the treatment and control groups based on their propensity scores. 
+
+-balanced statistics- now we have matched on all the covariates except for alcohol and meduc.
+
 
 ## ATT with Nearest Neighbor _(3 pts)_
 (e) Estimate the ATT using the matched dataset. Report and interpret your result (Note: no standard error or significance test is required here)
@@ -249,12 +267,15 @@ sumdiff_data <- match.data %>%
 
 # find ATT using the matched dataset
 sumdiff <- sum(sumdiff_data$diff) / 2
-ATT_m_nn = 1 / NT * sumdiff
+ATT_m_nn = 1 / sum(smoking$tobacco) * sumdiff
 ATT_m_nn
 
 # ATT is also the mean of the difference
 mean(sumdiff_data$diff)
 ```
+
+- The average treatment effect on the treated means that for mothers who smoke during pregnancy, their babies are, on average, born 222.94 grams lighter than mothers who don't smoke during pregnancy. 
+
 
 ## ATE with WLS Matching _(3 pts)_
 f) Last, use the original dataset and perform the weighted least squares estimation of the ATE using the propensity scores (including controls). Report and interpret your results, here include both size and precision of estimate in reporting and interpretation.
@@ -323,7 +344,7 @@ a) Estimate a first-difference (FD) regression manually, interpret the results b
    mutate(vani_fd = vani - dplyr::lag(vani))
 
 ## iii. Estimate manual first-difference regression (Estimate the regression using the newly created variables.)
-fd_manual <- lm(vani_fd ~ treatment)
+fd_manual <- lm(vani_fd ~ treatment, data = progres)
 
 ```
 ## Fixed Effects Estimates _(2 pts: 1 pts estimate, 1.5 interpretation)_

@@ -1,15 +1,16 @@
 ---
-title: "EDS241: Assignment 2 Template"
+title: 'EDS241: Assignment 2 Template'
 author: "Charlie Curtin"
-date: '`r format(Sys.time(), "%m/%d/%Y")`'
-output: 
+date: "format(Sys.time())"
+output:
   pdf_document:
     toc: false
-    number_sections: yes
-header-includes:
-  \setlength{\parindent}{1em}
-  \usepackage{float}
-  \renewcommand{\thesubsection}{Question (\alph{subsection})}
+    number_sections: true
+  html_document:
+    toc: false
+    df_print: paged
+header-includes: \setlength{\parindent}{1em} \usepackage{float} \renewcommand{\thesubsection}{Question
+  (\alph{subsection})}
 --- 
 
 **Reminders:** Make sure to read through the setup in markdown. Remember to fully report/interpret your results and estimates (in writing) + present them in tables/plots.
@@ -82,28 +83,13 @@ a) What is the mean difference in birth weight of infants with smoking and non-s
 ```{r , include=TRUE}
 ## Calculate mean difference. Remember to calculate a measure of statistical significance
 
-# subset our treatment and control groups
-smoking_mothers <- smoking %>% 
-  filter(tobacco == 1)
-
-nonsmoking_mothers <- smoking %>% 
-  filter(tobacco == 0)
-
-## under what assumption does this correspond to the ATE?
-# conduct a t.test to assess the difference between treatment and control groups on birth weight
-print(t.test(smoking_mothers$birthwgt, nonsmoking_mothers$birthwgt))
-
-## For continuous variables you can use the t-test
-# difference in means of age for smoking mothers and nonsmoking mothers
-print(t.test(smoking_mothers$mage, nonsmoking_mothers$mage))
-
-# difference in means of education for smoking mothers and nonsmoking mothers
-print(t.test(smoking_mothers$meduc, nonsmoking_mothers$meduc))
-
 ## For binary variables you should use the proportions test
 #prop.test()
 # select binary variables
 binary_vars <- smoking %>% 
+  select(anemia, diabete, alcohol, mblack, first, tobacco)
+
+binary_vars_names <- smoking %>% 
   select(anemia, diabete, alcohol, mblack, first) %>% 
   names()
 
@@ -111,19 +97,57 @@ binary_vars <- smoking %>%
 prop_test_results <- data.frame()
 
 # create a function that runs a proportions test
-for (var in binary_vars) {
-  prop_test_result <- prop.test(x = c(sum(smoking_mothers),
-                                      sum(nonsmoking_mothers)),
-                                n = c(length(smoking_mothers),
-                                      length(nonsmoking_mothers)),
+for (var in binary_vars_names) {
+  smoking_m <- binary_vars %>% 
+    filter(tobacco == 1) %>% 
+    pull(!!sym(var))
+  nonsmoking_m <- binary_vars %>% 
+    filter(tobacco == 0) %>% 
+    pull(!!sym(var))
+  prop_test_result <- prop.test(x = c(sum(smoking_m),
+                                      sum(nonsmoking_m)),
+                                n = c(length(smoking_m),
+                                      length(nonsmoking_m)),
                                 correct = FALSE)
   prop_test_result_tidy <- broom::tidy(prop_test_result)
   prop_test_result_tidy$Variable <- var
   prop_test_results <- rbind(prop_test_results, prop_test_result_tidy)
 }
 
-## Covariate Calculations and Tables (feel free to use code from Assignment 1 key)
 
+# for continuous variables
+t_test_results <- data.frame()
+
+cont_vars <- smoking %>% 
+  select(mage, meduc, birthwgt, tobacco)
+
+cont_vars_names <- smoking %>% 
+  select(mage, meduc, birthwgt) %>% 
+  names()
+
+for (var in cont_vars_names) {
+  formula <- as.formula(paste(var, "~ tobacco"))
+  t_test_result <- t.test(formula, data = cont_vars)
+  t_test_result_tidy <- broom::tidy(t_test_result) 
+  t_test_result_tidy$Variable <- var
+  t_test_results <- rbind(t_test_results, t_test_result_tidy)
+}
+
+# combine results into a table
+combined_results <- bind_rows(
+  prop_test_results %>% select(Variable, estimate1, estimate2, p.value), 
+  t_test_results %>% select(Variable, estimate1, estimate2, p.value)
+)
+
+# format table
+combined_results_table <- kable(combined_results, format = "html",
+                                col.names = c("Variable", "Proportion or Mean Control",
+                                              "Proportion or Mean Treated", "P-Value"),
+                                caption = "Treated and Untreated Proportion and T-Test results summary") %>% 
+  kable_styling(font_size = 7, latex_options = "hold_position")
+
+## Covariate Calculations and Tables (feel free to use code from Assignment 1 key)
+combined_results_table
 ```
 
 - under what assumption does this correspond to the ATE?
@@ -132,22 +156,36 @@ for (var in binary_vars) {
 ## ATE and Covariate Balance _(3 pts)_
 b) Assume that maternal smoking is randomly assigned conditional on the observable covariates listed above. Estimate the effect of maternal smoking on birth weight using an OLS regression with NO linear controls for the covariates [0.5 pts]. Perform the same estimate including the control variables [0.5 pts]. Next, compute indices of covariate imbalance between the treated and non-treated regarding these covariates (see example file from class). Present your results in a table [1 pts]. What do you find and what does it say regarding whether the assumption you mentioned responding to a) is fulfilled? [1 pts]
 
-```{r , include=TRUE}
-
+```{r, include = TRUE}
 # ATE Regression univariate
-
+model1 <- lm(birthwgt ~ tobacco, data = smoking)
 
 # ATE with covariates
+model2 <- lm(birthwgt ~ tobacco + anemia + diabete + alcohol + mblack + first + mage + meduc, data = smoking)
 
+# calculate standard errors
+se_models <- starprep(model1, model2, stat = c("std.error"), se_type = "HC2", alpha = .05)
 
 # Present Regression Results
-
+stargazer(model1, model2, se = se_models,
+          type = "latex", ci = FALSE, no.space = TRUE,
+          header = FALSE, omit = c("Constant"), omit.stat = c("adj.rsq", "ser", "f"),
+          covariate.labels = c("tobacco", "anemia", "diabete", "alcohol", "mblack", "first", "mage", "meduc"),
+          dep.var.labels = c("Birthweight (g)"), dep.var.caption = c(""),
+          title = "Average Treatment Effect of Smoking on Birthweight", table.placement = "H",
+          notes = "Robust standard errors in parentheses", notes.align = "l")
 
 # Covariate balance
-
+cov_balance <- xBalance(tobacco ~ anemia + diabete + alcohol + mblack + first + mage + meduc, 
+                        data = smoking, report = c("std.diffs", "chisquare.test", "p.values"))
 
 # Balance Table 
+# format table
+balance_table <- as.data.frame(cov_balance$results)
 
+kable(balance_table, format = "html")
+
+cov_balance$overall
 
 ```
 
@@ -155,37 +193,67 @@ b) Assume that maternal smoking is randomly assigned conditional on the observab
 c) Next, estimate propensity scores (i.e. probability of being treated) for the sample, using the provided covariates. Create a regression table reporting the results of the regression and discuss what the covariate coefficients indicate and interpret one coefficient [1.5 pts]. Create histograms of the propensity scores comparing the distributions of propensity scores for smokers ('treated') and non-smokers ('control'), discuss the overlap and what it means [1.5 pts].
 
 ```{r , include=TRUE}
-
 ## Propensity Scores
+# using glm
+propensity_lm <- glm(tobacco ~ anemia + diabete + alcohol + mblack + first + mage + meduc, 
+                  data = smoking, family = binomial())
+
+summary(propensity)
+
+# predict propensity scores
+smoking$pscores <- predict(propensity, type = "response")
 
 
 ## PS Histogram Unmatched 
+# histogram of propensity scores before matching
+histbackback(split(smoking$pscores,	smoking$tobacco),	main = 
+  "Propensity	score	before matching",	xlab = c("control",	"treatment"))
 
+# format regression table
+stargazer(propensity_lm, type = "html")
 ```
 
 ## Matching Balance _(3 pts)_
 (d) Next, match treated/control mothers using your estimated propensity scores and nearest neighbor matching. Compare the balancing of pretreatment characteristics (covariates) between treated and non-treated units in the original dataset (from c) with the matched dataset (think about comparing histograms/regressions) [2 pts]. Make sure to report and discuss the balance statistics [1 pts].
 
-```{r , include=TRUE}
-
+```{r, include = TRUE}
 ## Nearest-neighbor Matching
+m.nn	<- matchit(tobacco ~ anemia + diabete + alcohol + mblack + first + mage + meduc,
+                data = smoking,	method = "nearest",	ratio = 1)
+summary(m.nn)
+
+match.data	= match.data(m.nn)
 
 ## Covariate Imbalance post matching: 
+cov_balance_ps <- xBalance(tobacco ~ anemia + diabete + alcohol + mblack + first + mage + meduc, 
+                           data = match.data, report = c("std.diffs", "chisquare.test", "p.values"))
 
+cov_balance_ps$results
 
 ## Histogram of PS after matching
+histbackback(split(match.data$pscores, match.data$tobacco),	main = 
+  "Propensity	score	after matching",	xlab = c("control",	"treatment"))
 ```
 
-## ATE with Nearest Neighbor _(3 pts)_
+## ATT with Nearest Neighbor _(3 pts)_
 (e) Estimate the ATT using the matched dataset. Report and interpret your result (Note: no standard error or significance test is required here)
 
 ```{r , include=TRUE}
+NT = sum(smoking$tobacco)
 
 ## Nearest Neighbor 
-
 ## ATT
+sumdiff_data <- match.data %>%
+  group_by(subclass) %>%
+  mutate(diff = birthwgt[tobacco == 1] - birthwgt[tobacco == 0])
 
+# find ATT using the matched dataset
+sumdiff <- sum(sumdiff_data$diff) / 2
+ATT_m_nn = 1 / NT * sumdiff
+ATT_m_nn
 
+# ATT is also the mean of the difference
+mean(sumdiff_data$diff)
 ```
 
 ## ATE with WLS Matching _(3 pts)_
@@ -193,18 +261,31 @@ f) Last, use the original dataset and perform the weighted least squares estimat
 
 ```{r , include=TRUE}
 ## Weighted least Squares (WLS) estimator Preparation
+ps <- smoking$pscores # define birth weights
+Y <- smoking$birthwgt # define our outcome variable
+D <- smoking$tobacco # define our treatment variable
 
+# calculation of the weights based on propensity scores
+smoking$wgt = (D / ps + (1 - D) / (1 - ps))
 
 ## Weighted least Squares (WLS) Estimates
+wls_controls	<-lm(birthwgt	~ tobacco	+ anemia + diabete + alcohol + mblack + first + mage + meduc,
+                  data = smoking, weights = wgt)
 
+summary(wls_controls)
 
 ## Present Results
 
 ```
 
+- size = coefficient
+- precision = standard error, confidence interval, significance level
+
+
 ## Differences in Estimates _(1 pts)_ 
 g) Explain why it was to be expected given your analysis above that there is a difference between your estimates in e) and f)? 
 
+There's only a slight difference between the estimates of the ATT and the treatment of the ATE
 
 
 \newpage
@@ -220,12 +301,11 @@ Setup: Load the new baseline data (progresa_pre_1997.csv) and the follow-up data
 rm(list=ls()) # clean environment
 
 ## Load the datasets
-# progresa_pre_1997 <- read_csv() insert your filepath etc
-# progresa_post_1999 <- read_csv()
+progresa_post_1999 <- read_csv(here("data", "progresa_post_1999.csv"))
+progresa_pre_1997 <- read_csv(here("data", "progresa_pre_1997.csv"))
 
 ## Append post to pre dataset 
-#progresa <- rbind(progresa_pre_1997, progresa_post_1999)
-
+progresa <- rbind(progresa_pre_1997, progresa_post_1999)
 ```
 a) Estimate a first-difference (FD) regression manually, interpret the results briefly (size of coefficient and precision!)
 \indent *Note: Calculate the difference between pre- and post- program outcomes for each family. To do that, follow these steps and the code given in the R-template:
@@ -235,15 +315,15 @@ a) Estimate a first-difference (FD) regression manually, interpret the results b
 ## i. Sort the panel data in the order in which you want to take differences, i.e. by household and time.
 
 ## Create first differences of variables
-# progresa <- progresa %>% 
-#   arrange(hhid, year) %>% 
-#   group_by(hhid)
+ progresa <- progresa %>% 
+   arrange(hhid, year) %>% 
+   group_by(hhid) %>% 
 
 ## ii. Calculate the first difference using the lag function from the dplyr package.
-#     mutate(vani_fd = vani - dplyr::lag(vani)) 
+   mutate(vani_fd = vani - dplyr::lag(vani))
 
 ## iii. Estimate manual first-difference regression (Estimate the regression using the newly created variables.)
-# fd_manual <- lm(vani_fd ~ ...)
+fd_manual <- lm(vani_fd ~ treatment)
 
 ```
 ## Fixed Effects Estimates _(2 pts: 1 pts estimate, 1.5 interpretation)_

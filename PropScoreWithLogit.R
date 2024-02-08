@@ -34,16 +34,21 @@ NC=N-NT
 # ################
 
 # --- Computing	indices	of covariate	imbalance	before	matching
-# you will see that the tests reject the balanced distribion across all 
+# you will see that the tests reject the balanced distribution across all 
 # variables simultaneously (chi-square test) and for most variables separately
 # (std.diffs test) 
-xBalance(treat	~ age	+ educ + nodegree	+ re74	+ re75,	data=lalonde,
+xBalance(treat	~ age	+ educ + nodegree	+ re74	+ re75,	data=lalonde, # note: treat = Di in slide notation
          report=c("std.diffs","chisquare.test", "p.values"))
+###############
+# shows that they are not good comparisons, not BALANCED
+#mean(lalonde$age)
+#treat <- lalonde %>%
+#  filter(treat == 1) %>%
+#  summarize(., ~ mean(), n=n)
+#?summarise
+#mean(lalonde$age)
+###############
 
-## std.diff tells us about mean differences between treatment and control groups for each variable. Except for education, there are statistically significant differences between each group
-  ## framed as treated - untreated
-## p-value means we can reject the null that there is not a difference between groups
-## can't compare the treated and untreated because there are differences between groups
 
 # --- Treatment effect estimation using mean difference between treated and
 # non-treated --> we get a negative income effect of training program
@@ -51,38 +56,25 @@ ATE_naive = (sum(lalonde$treat*lalonde$re78)/NT
             - sum((1-lalonde$treat)*lalonde$re78)/NC)
 ATE_naive
 
-## negative value- untreated (didn't receive work program) are earning more income. But we can't compare the groups from the above xBalance line
-
 # You get the same if you run a simple regression on treatment without covariates
-reg	<-lm(re78	~ treat, data = lalonde)
-
+reg	<-lm(re78	~ treat,
+data = lalonde)
 summary(reg)
-
-## running regression as variable ~ treatment tells us the effect of treatment. Other way around tells us the likelihood of being selected into treatment based on variables
-## looking at income and treatment
 
 # --- Treatment effect estimation of regression coefficient of treatment 
 # without matching but with controls. Now estimated treatment effect is positive 
 # Why should you not trust this estimate either?
 reg	<-lm(re78	~ treat	+ age	+ educ	+ nodegree	+ re74	+ re75	+ married,
         data = lalonde)
-
 summary(reg)
-
-## adding controls can isolate some of the effects of different variables
-## groups are still imbalanced, don't have the right counterfactuals
 
 # --- Estimation of propensity	scores with the glm function
 # choosing family = "binomial" will pick a "logit" (or logistic) model
 # see https://www.datacamp.com/tutorial/logistic-regression-R for a quick
 # intro to logistic regression
-ps <- glm(treat	~ age	+ educ	+ nodegree	+ re74	+ re75,
-        data	= lalonde,	family = binomial())
-
+ps	<- glm(treat	~ age	+ educ	+ nodegree	+ re74	+ re75,
+        data	=lalonde,	family	= binomial())
 summary(ps)
-
-## predict probabilities that these individuals will be treated based on variables
-## 
 
 # --- Attach	the	predicted	propensity	score	to	the	datafile
 # Note: the predictions from a logit model are probabilities
@@ -101,13 +93,8 @@ histbackback(split(lalonde$psvalue,	lalonde$treat),	main=
 # with the nearest-neighbor approach)
 m.nn	<- matchit(treat	~ age	+ educ	+ nodegree	+ re74	+ re75,
         data	=lalonde,	method= "nearest",	ratio	= 1)
-
 summary(m.nn)
-
 match.data	= match.data(m.nn)
-
-## goes through each treated unit and matches the non-treated with the closest propensity score
-## creates a matched dataset that has 185 treated and 185 not-treated, matches 1 to 1
 
 # --- Computing	indices	of covariate	imbalance	after	matching
 # same command as above but using the matched data now
@@ -122,8 +109,6 @@ xBalance(treat	~ age	+ educ + nodegree	+ re74	+ re75,	data=match.data,
 histbackback(split(match.data$psvalue,	match.data$treat),	main= "Propensity
         score	after	matching",	xlab=c("control",	"treatment"))
 
-## matching with propensity scores has created comparable units to be used for the counterfactual
-
 # --- Treatment effect estimation using average outcome difference of matched pairs
 # do this with for loop but likely more elegant approaches are possible
 # note that equal entries in "subclass" of match.data defines the match
@@ -136,8 +121,15 @@ for (i in 1:NT){
   sumdiff <- sumdiff + temp[1,"re78"]-temp[2,"re78"] 
 }
 sumdiff
-ATE_m_nn = 1/NT * sumdiff
-ATE_m_nn
+ATT_m_nn = 1/NT * sumdiff
+ATT_m_nn
+
+# NOTE: This is an ATT estimate, NOT an ATE. Why? Because we picked nearest 
+# neighbor matches only for the treated. So we defined a counterfactual only for the
+# treated. We did not do a matching for all non-treated. Only if we had done this
+# and then calculated the average outcome differences for the whole population
+# between the matched pairs would we have estimated the ATE
+
 
 # alternative in tidyverse
 sumdiff_data<-match.data%>%
@@ -145,28 +137,47 @@ sumdiff_data<-match.data%>%
   mutate(diff=re78[treat==1]-re78[treat==0])
 
 sumdiff<-sum(sumdiff_data$diff)/2
-ATE_m_nn = 1/NT * sumdiff
-ATE_m_nn
+ATT_m_nn = 1/NT * sumdiff
+ATT_m_nn
 
-## calculates the real difference in income between matched pairs, sums them up, takes the mean, finds the difference in means to estimate ATE
-## value is 340, so our estimate is that treatment increases income by $340
 
-# --- estimate treatment effect with IPW estimator
-# DOES NOT YET WORK
-# lalonde$npsvalue <- lalonde$psvalue / sum(lalonde$psvalue)
-# ATE_IPW <- (1/(sum(lalonde$psvalue*lalonde$treat))
-#           *sum(lalonde$treat*lalonde$re78/lalonde$psvalue)
-#           - 1/(sum((1-lalonde$psvalue)*(1-lalonde$treat)))
-#             * sum((1-lalonde$treat)*(lalonde$re78/(1-lalonde$psvalue))))
- 
- ATE_IPW <- (1/sum(lalonde$psvalue) *
-            sum((lalonde$treat*lalonde$re78/lalonde$psvalue)
-            - (1-lalonde$treat)*lalonde$re78/(1-lalonde$psvalue)))
+# --- estimate treatment effect with Inverse Probability Weighting estimator
+# The treatment effect estimates in the following are based on the full dataset
+# and differ substantially from the ATT_m_nn just calculated. This indicates the 
+# strong heterogeneity between the treated and non-treated. Therefore it is 
+# expected that the ATE differs from the ATT (see slides from lecture 2). 
+# For the calculation of the IPW estimator see slide 23 of lecture 5
+
+PS <- lalonde$psvalue
+Y <- lalonde$re78
+D <- lalonde$treat
+EY1 <- D*Y/PS / sum(D/PS)
+EY0 <- (1-D)*Y/(1-PS) / sum((1-D) / (1-PS))
+ATE_IPW = sum(EY1) - sum(EY0)
 ATE_IPW
 
-# --- estimate treatment effect with Weighted Least Squares estimator
-# DOES NOT YET WORK
-lalonde$wgt = (lalonde$treat/lalonde$psvalue + 
-              (1-lalonde$treat)/(1-lalonde$psvalue))
-# reg_wls	<-lm(re78	~ treat	+ age	+ educ	+ nodegree	+ re74	+ re75	+ married,
-#          data = lalonde, weights = wgt)
+
+# --- estimate treatment effect with Weighted least Squares (WLS) estimator
+# Both the nearest neighbor matching estimator and the IPW estimattor do not
+# easily allow to calculated standard errors. They also do not allow to take
+# controls into consideration. Therefore the following weighted least squares
+# estimator has advantages
+
+# calculation of the weights - see slide 25 of lecture 5
+lalonde$wgt = (D/PS + (1-D)/(1-PS))
+
+# doing WLS without controls reproduces the IPW estimator
+reg_wls	<-lm(re78	~ treat,
+             data = lalonde, weights = wgt)
+summary(reg_wls)
+
+# With controls. Strongly advisable as outcomes depend on controls and including
+# them allows to estimate the ATE with more precision
+# --> the treatment effect has a lower standard error. Don't get confused by the
+# lack of statistical significance compared to the case without controls. It is
+# because the estimated treatment effect is smaller
+reg_wls_c	<-lm(re78	~ treat	+ age	+ educ	+ nodegree	+ re74	+ re75	+ married,
+          data = lalonde, weights = wgt)
+summary(reg_wls_c)
+
+

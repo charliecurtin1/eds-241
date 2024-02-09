@@ -3,12 +3,12 @@ title: 'EDS241: Assignment 2 Template'
 author: "Charlie Curtin"
 date: "format(Sys.time())"
 output:
-  pdf_document:
-    toc: false
-    number_sections: true
   html_document:
     toc: false
     df_print: paged
+  pdf_document:
+    toc: false
+    number_sections: true
 header-includes: \setlength{\parindent}{1em} \usepackage{float} \renewcommand{\thesubsection}{Question
   (\alph{subsection})}
 --- 
@@ -184,17 +184,16 @@ cov_balance <- xBalance(tobacco ~ anemia + diabete + alcohol + mblack + first + 
 
 # Balance Table 
 # format table
-balance_table <- as.data.frame(cov_balance$results)
-
-kable(balance_table, format = "html")
-
-balance_table
-
+tidy.xbal(cov_balance) %>% 
+  select(-NA.info) %>% 
+  kbl(caption = "covariate balance") %>% 
+  kable_minimal()
 ```
 
 - regression results- when you add all the covariates, the size of our estimate on tobacco changes. This means that there are other factors influencing 
 
-- balance table- The standardized difference in the balance table. For p-values that are significant, we've rejected the null hypothesis that there is no difference between the proportions or means of the covariates in our treatment and control groups. It shows that all the covariates are imbalanced between our treatment and control groups besides diabetes
+- balance table- The standardized difference in the balance table. For p-values that are significant, we've rejected the null hypothesis that there is no difference between the proportions or means of the covariates in our treatment and control groups. It shows that all the covariates are imbalanced between our treatment and control groups besides diabetes. 
+- The value .1 is the threshold of balance. Beneath it, they're balanced. The null hypothesis is that there is no difference, so a high p-value means that we 
 
 
 ## Propensity Score Estimation _(3 pts)_
@@ -223,7 +222,7 @@ stargazer(propensity_lm, type = "text")
 
 - regression results- The covariate coefficients show the increase in log-odds of the mother being a smoker (selecting into treatment), holding all other variables constant. For anemia, if the mother has anemia, their log-odds of being a smoker increase by .334. 
 
--histograms- The overlap in the histograms between control and treatment show that we do have matches at every bin of propensity scores, so we can try matching
+-histograms- The overlap in the histograms between control and treatment show that we do have matches at every bin of propensity scores, so we can try matching. 
 
 
 
@@ -236,29 +235,30 @@ m.nn	<- matchit(tobacco ~ anemia + diabete + alcohol + mblack + first + mage + m
                 data = smoking,	method = "nearest",	ratio = 1)
 summary(m.nn)
 
-match.data	= match.data(m.nn)
+match.data = match.data(m.nn)
 
 ## Covariate Imbalance post matching: 
 cov_balance_ps <- xBalance(tobacco ~ anemia + diabete + alcohol + mblack + first + mage + meduc, 
                            data = match.data, report = c("std.diffs", "chisquare.test", "p.values"))
 
-cov_balance_ps$results
+tidy.xbal(cov_balance_ps) %>% 
+  select(-NA.info) %>% 
+  kbl(caption = "covariate balance") %>% 
+  kable_minimal()
 
 ## Histogram of PS after matching
-histbackback(split(match.data$pscores, match.data$tobacco),	main = 
+histbackback(split(match.data$distance, match.data$tobacco),	main = 
   "Propensity	score	after matching",	xlab = c("control",	"treatment"))
 ```
 - histograms- Our histogram after matching shows more balance between control and treatment groups. We matched observations in the treatment and control groups based on their propensity scores. 
 
--balanced statistics- now we have matched on all the covariates except for alcohol and meduc.
+-balanced statistics- now we have matched on all the covariates except for alcohol and meduc. That means using nearest neighbors, it's difficult to find a good counterfactual for mothers in the treatment group who smoke. Same for meduc. Our high p-value indicates that our other covariates are balanced because the std difference is under the .1 threshold, and they are statistically insignificant. 
 
 
 ## ATT with Nearest Neighbor _(3 pts)_
 (e) Estimate the ATT using the matched dataset. Report and interpret your result (Note: no standard error or significance test is required here)
 
 ```{r , include=TRUE}
-NT = sum(smoking$tobacco)
-
 ## Nearest Neighbor 
 ## ATT
 sumdiff_data <- match.data %>%
@@ -296,17 +296,19 @@ wls_controls	<-lm(birthwgt	~ tobacco	+ anemia + diabete + alcohol + mblack + fir
 summary(wls_controls)
 
 ## Present Results
+# format table
 
 ```
 
 - size = coefficient
 - precision = standard error, confidence interval, significance level
+- Using least weighted squares regression, we estimate that the difference in mean birth weight between smoking and nonsmoking mothers is -224.85 grams. With WLS, we're using the entire dataset. With nearest neighbor matching, we're dropping lots of data.
 
 
 ## Differences in Estimates _(1 pts)_ 
 g) Explain why it was to be expected given your analysis above that there is a difference between your estimates in e) and f)? 
 
-There's only a slight difference between the estimates of the ATT and the treatment of the ATE
+There's only a slight difference between the estimates of the ATT (using nearest neighbor matching) and ATE (using weighted least squares regression). 
 
 
 \newpage
@@ -344,17 +346,28 @@ a) Estimate a first-difference (FD) regression manually, interpret the results b
    mutate(vani_fd = vani - dplyr::lag(vani))
 
 ## iii. Estimate manual first-difference regression (Estimate the regression using the newly created variables.)
-fd_manual <- lm(vani_fd ~ treatment, data = progres)
+fd_manual <- lm(vani_fd ~ treatment, data = progresa)
+
+summary(fd_manual)
 
 ```
+- ATE of the cash flow on value of animal holdings is 287.90 using a first difference estimator
+
 ## Fixed Effects Estimates _(2 pts: 1 pts estimate, 1.5 interpretation)_
 b) Now also run a fixed effects (FE or ‘within’) regression and compare the results. Interpret the estimated treatment effects briefly (size of coefficient and precision!)
 
 ```{r, include=TRUE}
 ## Fixed Effects Regression
+within1 <- plm(vani ~ treatment, index = c("state", "year"), model = "within", effect = "twoways", data = progresa)
 
 ## Present Regression Results
+summary(within1)
+
+# replace NA values with 0s
 ```
+
+- fixed effects control for differences between groups. In our example, we're controlling for differences between states. We're worried that there might be differences between states. In fixed effects you compare the effects of the group to itself over time, 
+
 
 ## First Difference and Fixed Effects and Omitted Variable Problems _(1 pts)_
 c) Explain briefly how the FD and FE estimator solves a specific omitted variable problem? Look at the example on beer tax and traffic fatalities from class to start thinking about ommitted variables. Give an example of a potential omitted variable for the example we are working with here that might confound our results? For that omitted variable, is a FE or FD estimator better? One example is enough.
